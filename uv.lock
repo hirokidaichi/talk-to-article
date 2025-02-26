@@ -2022,6 +2022,18 @@ wheels = [
 ]
 
 [[package]]
+name = "streamlit-local-storage"
+version = "0.0.25"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "streamlit" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d1/ad/5e92a9355c2f32c162f0e2a2262b90697385edf0fe64bc66a27eb652ac95/streamlit_local_storage-0.0.25.tar.gz", hash = "sha256:9b7c3e8ae7c14a68b47c980b167306181292213736dfa71850c8d3204dc2a9cd", size = 538392 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7b/a6/502b00b6db10c3d467ec57d822d6647a35f0328ef03668aa5b6dd160f966/streamlit_local_storage-0.0.25-py3-none-any.whl", hash = "sha256:0ef85618ed8c44f347b7acffb2d104da5b6915e6a4e24612f12a4d2cc355b951", size = 543746 },
+]
+
+[[package]]
 name = "talk-to-article"
 version = "0.1.0"
 source = { virtual = "." }
@@ -2030,6 +2042,7 @@ dependencies = [
     { name = "langchain" },
     { name = "langchain-anthropic" },
     { name = "streamlit" },
+    { name = "streamlit-local-storage" },
 ]
 
 [package.metadata]
@@ -2038,6 +2051,7 @@ requires-dist = [
     { name = "langchain", specifier = ">=0.3.19" },
     { name = "langchain-anthropic", specifier = ">=0.3.8" },
     { name = "streamlit", specifier = ">=1.42.2" },
+    { name = "streamlit-local-storage", specifier = ">=0.0.25" },
 ]
 
 [[package]]

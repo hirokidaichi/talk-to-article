@@ -1,9 +1,10 @@
 import streamlit as st
-import os
 from article_generator import (
     validate_api_key, set_api_key, 
     formalize_chunk, formalize_with_context,
-    split_transcript, generate_questions
+    split_transcript, generate_questions,
+    get_api_key_from_local_storage, save_api_key_to_local_storage,
+    get_api_key
 )
 
 def main():
@@ -12,34 +13,49 @@ def main():
     st.title("文字起こしテキストの整文化")
     st.markdown("文字起こしテキストを読みやすく整理された会話の発言録に変換するツールです。")
     
-    # 環境変数からAPIキーを取得
-    env_api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if env_api_key and validate_api_key(env_api_key):
-        set_api_key(env_api_key)
+    # ローカルストレージからAPIキーを取得
+    local_api_key = get_api_key_from_local_storage()
+    
+    # ローカルストレージからAPIキーを設定
+    if local_api_key and validate_api_key(local_api_key):
+        set_api_key(local_api_key)
     
     # サイドバーにAPIキー入力欄とモデル選択を設置
     with st.sidebar:
         st.header("設定")
         
         # APIキーの状態を表示
-        if env_api_key and validate_api_key(env_api_key):
-            st.success("環境変数からAPIキーが読み込まれました")
-            api_key_placeholder = "環境変数から読み込み済み"
+        current_api_key = get_api_key()
+        if current_api_key and validate_api_key(current_api_key):
+            st.success("APIキーが設定されています")
+            api_key_placeholder = "APIキー設定済み"
         else:
             api_key_placeholder = ""
         
+        # APIキー入力欄
         api_key = st.text_input(
             "Anthropic APIキー", 
             type="password", 
-            help="Anthropic APIキーを入力してください。環境変数ANTHROPIC_API_KEYが設定されている場合は自動的に使用されます。",
+            help="Anthropic APIキーを入力してください。ブラウザに保存することもできます。",
             placeholder=api_key_placeholder
         )
+        
+        # APIキーをブラウザに保存するチェックボックス
+        save_to_browser = st.checkbox("APIキーをブラウザに保存する", 
+                                     help="APIキーをブラウザのローカルストレージに保存します。次回アクセス時に自動的に読み込まれます。")
         
         # 手動入力されたAPIキーの検証
         if api_key:
             if validate_api_key(api_key):
                 set_api_key(api_key)
                 st.success("APIキーが設定されました")
+                
+                # ブラウザに保存するオプションが選択されている場合
+                if save_to_browser:
+                    if save_api_key_to_local_storage(api_key):
+                        st.success("APIキーがブラウザに保存されました")
+                    else:
+                        st.error("APIキーのブラウザへの保存に失敗しました")
             else:
                 st.error("APIキーの形式が正しくありません")
         
@@ -76,8 +92,8 @@ def main():
     
     # 疑問点生成ボタン
     if st.button("文脈理解のための疑問点を生成"):
-        if not validate_api_key():
-            st.error("APIキーが設定されていません。サイドバーでAPIキーを入力するか、環境変数ANTHROPIC_API_KEYを設定してください")
+        if not get_api_key():
+            st.error("APIキーが設定されていません。サイドバーでAPIキーを入力してください")
         else:
             try:
                 with st.spinner("疑問点を生成中..."):
@@ -109,8 +125,8 @@ def main():
             st.error("文字起こしテキストを入力してください")
             return
         
-        if not validate_api_key():
-            st.error("APIキーが設定されていません。サイドバーでAPIキーを入力するか、環境変数ANTHROPIC_API_KEYを設定してください")
+        if not get_api_key():
+            st.error("APIキーが設定されていません。サイドバーでAPIキーを入力してください")
             return
         
         try:

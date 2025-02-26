@@ -1,4 +1,5 @@
 from typing import List, Optional
+import streamlit as st
 from langchain_anthropic import ChatAnthropic
 from langchain.prompts import ChatPromptTemplate
 from .transcript_splitter import split_transcript
@@ -17,69 +18,60 @@ def create_prompt_template(with_context: bool = False) -> str:
     <system_role>
     あなたは文字起こしテキストを整理して整文化をするプロフェッショナルです。
     以下の文字起こしテキストを、背景情報も考慮しながら整理された会話の発言録に書き直してください。
-    
-    会話の例：
-    **Aさん** : 内容~
-    
-    **Bさん** : 内容~
     </system_role>
 
+    <input_transcript>
+    {chunk}
+    </input_transcript>
+    
     <background_info>
     {background}
     </background_info>
+    
+    <processing_instructions>
+    - 話者の発言を明確に区別し、「話者A:」「話者B:」などのラベルを付けてください
+    - 話者が特定できる場合は、名前や役職を使用してください
+    - 文法的に正しく、読みやすい文章に整えてください
+    - 冗長な表現、言い間違い、言い直しを整理してください
+    - 「えー」「あの」などの無意味な言葉を削除してください
+    - 文脈から明らかな場合は、省略された主語や目的語を補ってください
+    - 専門用語や略語はそのまま使用してください
+    - 背景情報を参考にして、文脈を理解しやすくしてください
+    - マークダウン形式で出力してください
+    - 元の内容や意味を変えないでください
+    </processing_instructions>
     """
     
-    if with_context:
-        base_template += """
+    context_template = """
     <previous_content>
     {previous_result}
     </previous_content>
     
-    <input_transcript>
-    {chunk}
-    </input_transcript>
-    
-    <processing_instructions>
-    - 前のチャンクの処理結果との一貫性を保ちながら、新しいチャンクを整う化してください
-    - 前のチャンクで既に言及された内容との重複を避けてください
-    - 話者の名前や役職などの表記は前のチャンクと統一してください
+    <additional_instructions>
+    - 前の部分との一貫性を保ってください
+    - 同じ話者には同じラベルを使用してください
     - 話の流れが自然につながるようにしてください
-    - 文字起こしの内容をできる限り正確に保持してください
-    - 話し言葉を自然な書き言葉に変換してください
-    - 冗長な表現や繰り返しを整理してください
-    - 文脈を保ちながら、論理的で読みやすい段落構成にしてください
-    - 背景情報を活用して、文脈や専門用語の理解を深めてください
-    - 不明瞭な表現は背景情報を参考に明確にしてください
-    - 原文の意図や主張を変えないでください
-    - 内容を追加せず、与えられた情報のみを使用してください
-    - 見出しは作成せず、会話の流れをそのまま表現してください
-    - 「# 〜」のような見出しは決して作成しないでください
-    - 話者分離が正確ではない可能性があります。文脈から話者が違う場合は修正を提案してください
-    - 前のチャンクとの接続部分が自然になるようにしてください
-    - 「以下の文字起こしを整理された会話の発言録に書き直しました：」のような前置きをせず、発言録のみを出力してください。
-    </processing_instructions>
+    - 重複する内容は適切に調整してください
+    </additional_instructions>
     """
+    
+    if with_context:
+        return base_template + context_template
     else:
-        base_template += """
-    <input_transcript>
-    {chunk}
-    </input_transcript>
-    
-    <processing_instructions>
-    - 文字起こしの内容をできる限り正確に保持してください
-    - 話し言葉を自然な書き言葉に変換してください
-    - 冗長な表現や繰り返しを整理してください
-    - 文脈を保ちながら、論理的で読みやすい段落構成にしてください
-    - 背景情報を活用して、文脈や専門用語の理解を深めてください
-    - 不明瞭な表現は背景情報を参考に明確にしてください
-    - 原文の意図や主張を変えないでください
-    - 内容を追加せず、与えられた情報のみを使用してください
-    - 見出しは作成せず、会話の流れをそのまま表現してください
-    - 「# 〜」のような見出しは使用しないでください
-    </processing_instructions>
+        return base_template
+
+def get_anthropic_client(model_name: str = "claude-3-7-sonnet-latest") -> ChatAnthropic:
     """
+    Anthropicクライアントを取得します。
     
-    return base_template
+    Args:
+        model_name: 使用するAnthropicモデル名
+    
+    Returns:
+        ChatAnthropicインスタンス
+    """
+    api_key = st.session_state.get("anthropic_api_key")
+    return ChatAnthropic(model=model_name, anthropic_api_key=api_key)
 
 def formalize_chunk(chunk: str, background: Optional[str] = None, model_name: str = "claude-3-7-sonnet-latest") -> str:
     """
@@ -94,7 +86,7 @@ def formalize_chunk(chunk: str, background: Optional[str] = None, model_name: st
         整文化されたテキスト
     """
     # Anthropicモデルの初期化
-    llm = ChatAnthropic(model=model_name)
+    llm = get_anthropic_client(model_name)
     
     # プロンプトテンプレートの作成
     template = create_prompt_template(with_context=False)
@@ -120,7 +112,7 @@ def formalize_with_context(chunk: str, previous_result: str = "", background: Op
         整文化されたテキスト
     """
     # Anthropicモデルの初期化
-    llm = ChatAnthropic(model=model_name)
+    llm = get_anthropic_client(model_name)
     
     # プロンプトテンプレートの作成
     template = create_prompt_template(with_context=True)
@@ -197,7 +189,7 @@ def generate_questions(transcript: str, model_name: str = "claude-3-7-sonnet-lat
         生成された疑問点のリスト（マークダウン形式）
     """
     # Anthropicモデルの初期化
-    llm = ChatAnthropic(model=model_name)
+    llm = get_anthropic_client(model_name)
     
     # プロンプトテンプレートの作成
     template = """

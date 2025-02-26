@@ -1,5 +1,7 @@
 import os
 from typing import Optional
+import streamlit as st
+from streamlit_local_storage import LocalStorage
 
 def validate_api_key(api_key: Optional[str] = None) -> bool:
     """
@@ -11,8 +13,8 @@ def validate_api_key(api_key: Optional[str] = None) -> bool:
     Returns:
         APIキーが有効な形式かどうか
     """
-    # 環境変数からAPIキーを取得（api_keyが指定されていない場合）
-    key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+    # 引数またはセッションステートからAPIキーを取得
+    key = api_key
     
     # 簡易的な検証（実際のAPIキーの形式に合わせて調整）
     if not key:
@@ -30,9 +32,70 @@ def validate_api_key(api_key: Optional[str] = None) -> bool:
 
 def set_api_key(api_key: str) -> None:
     """
-    Anthropic APIキーを環境変数に設定します。
+    Anthropic APIキーをセッションに設定します。
     
     Args:
         api_key: 設定するAPIキー
     """
-    os.environ["ANTHROPIC_API_KEY"] = api_key 
+    st.session_state.anthropic_api_key = api_key
+
+def get_api_key() -> Optional[str]:
+    """
+    セッションからAPIキーを取得します。
+    
+    Returns:
+        APIキー（存在する場合）
+    """
+    return st.session_state.get("anthropic_api_key")
+
+def get_api_key_from_local_storage() -> Optional[str]:
+    """
+    ローカルストレージからAPIキーを取得します。
+    
+    Returns:
+        APIキー（存在する場合）
+    """
+    try:
+        local_storage = LocalStorage()
+        api_key = local_storage.getItem("anthropic_api_key")
+        return api_key
+    except Exception:
+        return None
+
+def save_api_key_to_local_storage(api_key: str) -> bool:
+    """
+    APIキーをローカルストレージに保存します。
+    
+    Args:
+        api_key: 保存するAPIキー
+    
+    Returns:
+        保存が成功したかどうか
+    """
+    try:
+        local_storage = LocalStorage()
+        local_storage.setItem("anthropic_api_key", api_key)
+        return True
+    except Exception:
+        return False
+
+# 以下の関数は後方互換性のために残しておきます
+def get_api_key_from_session() -> Optional[str]:
+    """
+    セッションステートからAPIキーを取得します。
+    
+    Returns:
+        APIキー（存在する場合）
+    """
+    if "api_key" in st.session_state:
+        return st.session_state.api_key
+    return None
+
+def save_api_key_to_session(api_key: str) -> None:
+    """
+    APIキーをセッションステートに保存します。
+    
+    Args:
+        api_key: 保存するAPIキー
+    """
+    st.session_state.api_key = api_key 

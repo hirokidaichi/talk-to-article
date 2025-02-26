@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Local Storage Handler</title>
+</head>
+<body>
+    <script>
+        // ローカルストレージからAPIキーを取得する関数
+        function getApiKeyFromLocalStorage() {
+            return localStorage.getItem('anthropic_api_key');
+        }
+
+        // ローカルストレージにAPIキーを保存する関数
+        function saveApiKeyToLocalStorage(apiKey) {
+            localStorage.setItem('anthropic_api_key', apiKey);
+            return true;
+        }
+
+        // Streamlitとの通信
+        window.addEventListener('message', function(event) {
+            const data = event.data;
+
+            // Streamlitからのメッセージを処理
+            if (data.type === 'getApiKey') {
+                const apiKey = getApiKeyFromLocalStorage();
+                window.parent.postMessage({
+                    type: 'apiKeyFromLocalStorage',
+                    apiKey: apiKey
+                }, '*');
+            } else if (data.type === 'saveApiKey') {
+                const result = saveApiKeyToLocalStorage(data.apiKey);
+                window.parent.postMessage({
+                    type: 'apiKeySaved',
+                    success: result
+                }, '*');
+            }
+        });
+
+        // コンポーネントの準備ができたことをStreamlitに通知
+        window.parent.postMessage({
+            type: 'componentReady'
+        }, '*');
+    </script>
+</body>
+</html> 
