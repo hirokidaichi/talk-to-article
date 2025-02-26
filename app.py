@@ -3,7 +3,7 @@ import os
 from article_generator import (
     validate_api_key, set_api_key, 
     formalize_chunk, formalize_with_context,
-    split_transcript
+    split_transcript, generate_questions
 )
 
 def main():
@@ -69,21 +69,42 @@ def main():
         st.markdown("---")
         st.markdown("このツールはLangChainとAnthropic Claudeを使用しています。")
     
-    # メイン画面の入力フォーム
-    with st.form("formalize_form"):
-        # 文字起こしテキスト入力
-        transcript = st.text_area("文字起こしテキスト", height=300, 
-                                help="整文化したい文字起こしテキストを入力してください")
-        
-        # 背景情報入力
-        background = st.text_area("背景情報（任意）", height=100, 
-                                help="文字起こしの理解に役立つ背景知識や補足情報を入力してください")
-        
-        # 実行ボタン
-        submit_button = st.form_submit_button("整文化する")
+
+    # メイン画面の入力部分
+    transcript = st.text_area("文字起こしテキスト", height=300, 
+                    help="整文化したい文字起こしテキストを入力してください")
+    
+    # 疑問点生成ボタン
+    if st.button("文脈理解のための疑問点を生成"):
+        if not validate_api_key():
+            st.error("APIキーが設定されていません。サイドバーでAPIキーを入力するか、環境変数ANTHROPIC_API_KEYを設定してください")
+        else:
+            try:
+                with st.spinner("疑問点を生成中..."):
+                    # 疑問点を生成
+                    questions = generate_questions(transcript, selected_model)
+                    st.success("疑問点の生成が完了しました！")
+                    st.markdown(questions)
+                
+            except Exception as e:
+                st.error(f"エラーが発生しました: {str(e)}")
+
+    # 背景情報入力
+    background = st.text_area("背景情報（任意）", height=100, 
+                            help="文字起こしの理解に役立つ背景知識や補足情報を入力してください")
+    
+    # 整文化ボタン
+    formalize_button = st.button("整文化する")
+    
+    # 進捗表示用のコンテナ
+    progress_container = st.container()
+    
+    # 結果表示用のコンテナ
+    result_container = st.container()
+    
     
     # 整文化処理
-    if submit_button:
+    if formalize_button:
         if not transcript:
             st.error("文字起こしテキストを入力してください")
             return
@@ -93,10 +114,8 @@ def main():
             return
         
         try:
+            
             with st.spinner("整文化処理中..."):
-                # 進捗表示用のコンテナ
-                progress_container = st.container()
-                
                 # チャンク分割の前処理
                 chunks = split_transcript(transcript)
                 total_chunks = len(chunks)
@@ -121,17 +140,19 @@ def main():
                 progress_text.write("処理が完了しました！")
             
             # 結果表示
-            st.success("整文化が完了しました！")
-            st.markdown("## 整文化されたテキスト")
-            st.markdown(formalized_text)
-            
-            # ダウンロードボタン
-            st.download_button(
-                label="整文化テキストをダウンロード",
-                data=formalized_text,
-                file_name="formalized_transcript.md",
-                mime="text/markdown"
-            )
+            with result_container:
+                st.success("整文化が完了しました！")
+                st.markdown("## 整文化されたテキスト")
+                st.markdown(formalized_text)
+                
+                # ダウンロードボタン
+                st.download_button(
+                    label="整文化テキストをダウンロード",
+                    data=formalized_text,
+                    file_name="formalized_transcript.md",
+                    mime="text/markdown"
+                )
+    
         
         except Exception as e:
             st.error(f"エラーが発生しました: {str(e)}")
@@ -139,6 +160,7 @@ def main():
 def process_with_progress(chunks, background, progress_callback, model_name="claude-3-7-sonnet-latest"):
     """
     進捗状況を表示しながらチャンクを処理します。
+    直前3つのチャンクの処理結果をコンテキストとして使用します。
     
     Args:
         chunks: 処理するチャンクのリスト
@@ -149,7 +171,8 @@ def process_with_progress(chunks, background, progress_callback, model_name="cla
     Returns:
         整文化されたテキスト
     """
-    accumulated_result = ""
+    # 処理結果を保存するリスト
+    processed_chunks = []
     total_chunks = len(chunks)
     
     for i, chunk in enumerate(chunks):
@@ -158,14 +181,23 @@ def process_with_progress(chunks, background, progress_callback, model_name="cla
         
         if i == 0:
             # 最初のチャンクは通常の方法で処理
-            accumulated_result = formalize_chunk(chunk, background, model_name)
+            result = formalize_chunk(chunk, background, model_name)
+            processed_chunks.append(result)
         else:
-            # 2つ目以降のチャンクは前の結果を考慮して処理
-            next_part = formalize_with_context(chunk, accumulated_result, background, model_name)
-            # チャンク間にMarkdownのセパレーターを追加
-            accumulated_result = accumulated_result + "\n\n----\n\n" + next_part
+            # 直前3つのチャンクの処理結果を取得
+            context_window = 3
+            start_idx = max(0, i - context_window)
+            recent_results = processed_chunks[start_idx:i]
+            
+            # 直前のチャンクの処理結果を連結してコンテキストとして使用
+            context = "\n\n".join(recent_results)
+            
+            # コンテキストを考慮して処理
+            next_part = formalize_with_context(chunk, context, background, model_name)
+            processed_chunks.append(next_part)
     
-    return accumulated_result
+    # 全ての処理結果を連結
+    return "\n\n----\n\n".join(processed_chunks)
 
 if __name__ == "__main__":
     main() 

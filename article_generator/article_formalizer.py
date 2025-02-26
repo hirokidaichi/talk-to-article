@@ -56,6 +56,7 @@ def create_prompt_template(with_context: bool = False) -> str:
     - 「# 〜」のような見出しは決して作成しないでください
     - 話者分離が正確ではない可能性があります。文脈から話者が違う場合は修正を提案してください
     - 前のチャンクとの接続部分が自然になるようにしてください
+    - 「以下の文字起こしを整理された会話の発言録に書き直しました：」のような前置きをせず、発言録のみを出力してください。
     </processing_instructions>
     """
     else:
@@ -183,3 +184,49 @@ def formalize_chunks_with_context(chunks: List[str], background: Optional[str] =
             accumulated_result = accumulated_result + "\n" + next_part
     
     return accumulated_result
+
+def generate_questions(transcript: str, model_name: str = "claude-3-7-sonnet-latest") -> str:
+    """
+    文字起こしテキストを分析し、文脈理解のための疑問点を生成します。
+    
+    Args:
+        transcript: 分析する文字起こしテキスト
+        model_name: 使用するAnthropicモデル名
+    
+    Returns:
+        生成された疑問点のリスト（マークダウン形式）
+    """
+    # Anthropicモデルの初期化
+    llm = ChatAnthropic(model=model_name)
+    
+    # プロンプトテンプレートの作成
+    template = """
+    <system_role>
+    あなたは文字起こしテキストを分析し、文脈理解のために必要な疑問点を抽出するプロフェッショナルです。
+    以下の文字起こしテキストを読み、文脈を理解する上で不明確な点や背景情報が必要な点について、
+    5〜10個程度の具体的な疑問を生成してください。
+    </system_role>
+
+    <input_transcript>
+    {transcript}
+    </input_transcript>
+    
+    <processing_instructions>
+    - テキストの内容を深く理解するために必要な疑問点を抽出してください
+    - 専門用語や略語の意味に関する疑問を含めてください
+    - 話者の関係性や立場に関する疑問を含めてください
+    - 議論されているプロジェクトや事象の背景に関する疑問を含めてください
+    - 時系列や因果関係が不明確な部分に関する疑問を含めてください
+    - 具体的で明確な質問を作成してください
+    - 質問は箇条書きでマークダウン形式で出力してください
+    - 各質問の重要度や優先度に応じて並べ替えてください
+    </processing_instructions>
+    """
+    
+    prompt = ChatPromptTemplate.from_template(template)
+    
+    # 最新のLangChain APIを使用
+    chain = prompt | llm
+    result = chain.invoke({"transcript": transcript})
+    
+    return result.content
